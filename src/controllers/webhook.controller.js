@@ -10,10 +10,17 @@ async function handleAlert(req, res) {
 
     if (action === "opened" || action === "synchronize") {
       try {
+        const fetchHeaders = {
+          Accept: "application/vnd.github.v3.diff",
+          "User-Agent": "codesense-app",
+        };
+
+        if (process.env.GITHUB_TOKEN) {
+          fetchHeaders["Authorization"] = `token ${process.env.GITHUB_TOKEN}`;
+        }
+
         const diffResponse = await fetch(pr.url, {
-          headers: {
-            Accept: "application/vnd.github.v3.diff",
-          },
+          headers: fetchHeaders,
         });
 
         if (!diffResponse.ok) {
@@ -45,7 +52,8 @@ async function handleAlert(req, res) {
         });
 
         console.log("---AI Code Review---");
-        console.log(aiResponse.text);
+        const reviewText = aiResponse.choices?.[0]?.message?.content || "No review content generated";
+        console.log(reviewText);
         console.log("--------------------");
       } catch (error) {
         console.error("Error during AI Review process: ", error);
