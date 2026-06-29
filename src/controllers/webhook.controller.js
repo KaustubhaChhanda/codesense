@@ -32,9 +32,9 @@ async function handleAlert(req, res) {
         const systemInstruction = `
         You are an expert Senior Software Engineer performing a code review.
         Analyze the following Git diff from a Pull Request.
-        Provide a concise summary of the changes and evaluate if the PR is good enough to merge.
-        Check for bugs, security vulnerabilities, code smells, or performance issues.
-        Be constructive and direct. Keep your response clear and formatted in markdown.
+        Provide a short, concise code review comment suitable for posting directly as a GitHub Pull Request review summary.
+        Highlight key changes, call out any critical bugs, security vulnerabilities, code smells, or performance issues, and state if it is ready to merge.
+        Keep the feedback constructive, direct, and formatted in markdown. Do not include conversational preambles (like "Sure, here is the review") or explanations outside of the review comment itself.
         `;
 
         console.log("Sending diff to Groq for review...");
@@ -55,6 +55,31 @@ async function handleAlert(req, res) {
         const reviewText = aiResponse.choices?.[0]?.message?.content || "No review content generated";
         console.log(reviewText);
         console.log("--------------------");
+
+        if (process.env.GITHUB_TOKEN) {
+          console.log("Posting review comment to GitHub PR...");
+          const reviewResponse = await fetch(`${pr.url}/reviews`, {
+            method: "POST",
+            headers: {
+              Accept: "application/vnd.github+json",
+              "User-Agent": "codesense-app",
+              Authorization: `token ${process.env.GITHUB_TOKEN}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              body: reviewText,
+              event: "COMMENT",
+            }),
+          });
+
+          if (!reviewResponse.ok) {
+            const errorMsg = await reviewResponse.text();
+            throw new Error(`Failed to post review comment: ${reviewResponse.status} ${reviewResponse.statusText} - ${errorMsg}`);
+          }
+          console.log("Review comment posted successfully to GitHub!");
+        } else {
+          console.log("GITHUB_TOKEN not configured. Skipping posting review comment to GitHub.");
+        }
       } catch (error) {
         console.error("Error during AI Review process: ", error);
       }
